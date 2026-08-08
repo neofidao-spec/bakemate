@@ -176,7 +176,7 @@ fun RecipeDetailScreen(
                                 if (recipe.hydrationPercent > 0) {
                                     Spacer(Modifier.height(8.dp))
                                     LinearProgressIndicator(
-                                        progress = { (recipe.hydrationPercent / 100f).coerceIn(0f, 1f) },
+                                        progress = { (recipe.hydrationPercent / 100f).toFloat().coerceIn(0f, 1f) },
                                         modifier = Modifier.fillMaxWidth()
                                     )
                                     Text(

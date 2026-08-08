@@ -11,14 +11,14 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface BakeSessionDao {
 
-    @Query("SELECT * FROM bake_sessions WHERE status = :status ORDER BY startedAt DESC LIMIT 1")
-    fun observeActive(status: String = BakeSession.STATUS_ACTIVE): Flow<BakeSession?>
+    @Query("SELECT * FROM bake_sessions WHERE status != 'DONE' ORDER BY startedAt DESC LIMIT 1")
+    fun observeActive(): Flow<BakeSession?>
 
-    @Query("SELECT * FROM bake_sessions WHERE status = :status ORDER BY startedAt DESC LIMIT 1")
-    suspend fun getActive(status: String = BakeSession.STATUS_ACTIVE): BakeSession?
+    @Query("SELECT * FROM bake_sessions WHERE status != 'DONE' ORDER BY startedAt DESC LIMIT 1")
+    suspend fun getActive(): BakeSession?
 
-    @Query("SELECT * FROM bake_sessions WHERE status = :status ORDER BY startedAt DESC")
-    fun observeAll(status: String = BakeSession.STATUS_ACTIVE): Flow<List<BakeSession>>
+    @Query("SELECT * FROM bake_sessions WHERE status != 'DONE' ORDER BY startedAt DESC")
+    fun observeAll(): Flow<List<BakeSession>>
 
     @Query("SELECT COUNT(*) FROM bake_sessions WHERE status = 'DONE'")
     fun observeCompletedCount(): Flow<Int>

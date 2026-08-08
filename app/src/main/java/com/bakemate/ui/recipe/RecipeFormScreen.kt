@@ -221,7 +221,10 @@ private fun IngredientRow(
                     modifier = Modifier.weight(1f)
                 )
                 Spacer(Modifier.width(12.dp))
-                Column(verticalAlignment = Alignment.CenterVertically) {
+                Column(
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Text(
                         text = "Tepung",
                         style = MaterialTheme.typography.labelMedium

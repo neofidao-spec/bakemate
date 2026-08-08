@@ -1,10 +1,19 @@
 package com.bakemate.ui.timer
 
+import android.content.Context
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bakemate.data.repository.BakeSessionRepository
+import com.bakemate.domain.BakeStage
 import com.bakemate.domain.DefaultStages
+import com.bakemate.domain.timer.BakeTimerEngine
+import com.bakemate.domain.timer.BakeSessionModel
+import com.bakemate.domain.timer.StageSnapshot
+import com.bakemate.permission.PermissionHelper
 import com.bakemate.timer.TimerScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,25 +23,31 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class StageTimer(
+data class TimerStageUi(
     val name: String,
     val totalSeconds: Long,
     val remainingSeconds: Long,
-    val isRunning: Boolean = false,
     val isDone: Boolean = false
 )
 
 data class TimerUiState(
-    val stages: List<StageTimer> = emptyList(),
+    val stages: List<TimerStageUi> = emptyList(),
     val currentIndex: Int = 0,
     val isBaking: Boolean = false,
+    val isPaused: Boolean = false,
     val bakeMode: Boolean = false,
-    val editMode: Boolean = false
+    val sessionName: String = "Timer Bebas",
+    val editMode: Boolean = false,
+    val needNotificationPermission: Boolean = false,
+    val needExactAlarmPermission: Boolean = false,
+    val finishedMessage: String? = null
 )
 
 @HiltViewModel
 class TimerViewModel @Inject constructor(
-    private val timerScheduler: TimerScheduler
+    private val sessionRepository: BakeSessionRepository,
+    private val timerScheduler: TimerScheduler,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(TimerUiState())
@@ -41,22 +56,89 @@ class TimerViewModel @Inject constructor(
     private var tickJob: Job? = null
 
     init {
-        resetToDefaults()
+        restoreActiveSession()
+    }
+
+    // ===== Session restore =====
+    private fun restoreActiveSession() {
+        viewModelScope.launch {
+            val session = sessionRepository.getActive()
+            if (session != null) {
+                val now = SystemClock.elapsedRealtime()
+                val index = BakeTimerEngine.currentStageIndex(session.stageEnds, now)
+                val finished = BakeTimerEngine.isFinished(session.stageEnds, now)
+                _uiState.value = TimerUiState(
+                    stages = session.stages.mapIndexed { i, s ->
+                        TimerStageUi(
+                            name = s.name,
+                            totalSeconds = s.totalSeconds,
+                            remainingSeconds = if (finished) 0L
+                            else BakeTimerEngine.remainingMs(session.stageEnds, i, now) / 1000L,
+                            isDone = i < index
+                        )
+                    },
+                    currentIndex = index,
+                    isBaking = !finished && session.status != BakeSessionModel.STATUS_PAUSED,
+                    isPaused = session.status == BakeSessionModel.STATUS_PAUSED,
+                    bakeMode = session.bakeMode,
+                    sessionName = session.recipeName,
+                    needNotificationPermission = !PermissionHelper.hasNotificationPermission(context),
+                    needExactAlarmPermission = !PermissionHelper.hasExactAlarmPermission(context)
+                )
+                if (!finished && session.status != BakeSessionModel.STATUS_PAUSED) {
+                    startTicking()
+                }
+            } else {
+                resetToDefaults()
+            }
+        }
     }
 
     fun resetToDefaults() {
         tickJob?.cancel()
-        val stages = DefaultStages.list.map {
-            StageTimer(name = it.name, totalSeconds = it.defaultMinutes * 60L, remainingSeconds = it.defaultMinutes * 60L)
-        }
-        _uiState.value = TimerUiState(stages = stages)
+        _uiState.value = TimerUiState(
+            stages = DefaultStages.list.map {
+                TimerStageUi(name = it.name, totalSeconds = it.defaultMinutes * 60L, remainingSeconds = it.defaultMinutes * 60L)
+            },
+            sessionName = "Timer Bebas",
+            needNotificationPermission = !PermissionHelper.hasNotificationPermission(context),
+            needExactAlarmPermission = !PermissionHelper.hasExactAlarmPermission(context)
+        )
     }
 
+    /** Mulai baking dari resep tertentu (dipanggil dari detail resep / home). */
+    fun startBakingFromRecipe(recipeId: Long?, recipeName: String, stages: List<StageSnapshot>) {
+        viewModelScope.launch {
+            sessionRepository.startSession(recipeId, recipeName, stages, _uiState.value.bakeMode)
+            val session = sessionRepository.getActive() ?: return@launch
+            val now = SystemClock.elapsedRealtime()
+            scheduleAlarms(session.stages, session.stageEnds)
+            _uiState.value = TimerUiState(
+                stages = session.stages.mapIndexed { i, s ->
+                    TimerStageUi(
+                        name = s.name,
+                        totalSeconds = s.totalSeconds,
+                        remainingSeconds = BakeTimerEngine.remainingMs(session.stageEnds, i, now) / 1000L,
+                        isDone = false
+                    )
+                },
+                currentIndex = 0,
+                isBaking = true,
+                bakeMode = _uiState.value.bakeMode,
+                sessionName = recipeName,
+                needNotificationPermission = !PermissionHelper.hasNotificationPermission(context),
+                needExactAlarmPermission = !PermissionHelper.hasExactAlarmPermission(context)
+            )
+            startTicking()
+        }
+    }
+
+    // ===== Kontrol =====
     fun setStageDuration(index: Int, minutes: Int) {
         val safe = minutes.coerceIn(1, 720)
         _uiState.update { state ->
             val newStages = state.stages.toMutableList()
-            val current = newStages[index]
+            val current = newStages.getOrNull(index) ?: return@update state
             newStages[index] = current.copy(
                 totalSeconds = safe * 60L,
                 remainingSeconds = safe * 60L
@@ -65,66 +147,122 @@ class TimerViewModel @Inject constructor(
         }
     }
 
-    fun toggleEditMode() {
-        _uiState.update { it.copy(editMode = !it.editMode) }
+    fun toggleEditMode() = _uiState.update { it.copy(editMode = !it.editMode) }
+
+    fun toggleBakeMode() {
+        val newValue = !_uiState.value.bakeMode
+        _uiState.update { it.copy(bakeMode = newValue) }
+        if (_uiState.value.isBaking || _uiState.value.isPaused) {
+            viewModelScope.launch {
+                sessionRepository.getActive()?.let { session ->
+                    sessionRepository.updateSession(session.copy(bakeMode = newValue))
+                }
+            }
+        }
     }
 
     fun startBaking() {
-        tickJob?.cancel()
         val state = _uiState.value
-        val now = System.currentTimeMillis()
-        state.stages.forEachIndexed { index, stage ->
-            val startOffset = state.stages.take(index).sumOf { it.totalSeconds } * 1000L
-            val triggerAt = now + startOffset + stage.totalSeconds * 1000L
-            timerScheduler.scheduleStage(index, stage.name, stage.totalSeconds * 1000L, triggerAt)
-        }
-        _uiState.update {
-            it.copy(
-                isBaking = true,
-                editMode = false,
-                currentIndex = 0,
-                stages = it.stages.map { s -> s.copy(isRunning = false, isDone = false) }
-            )
-        }
-        startTicking()
+        val stages = state.stages.filter { it.totalSeconds > 0 }
+            .map { StageSnapshot(it.name, it.totalSeconds) }
+        if (stages.isEmpty()) return
+        startBakingFromRecipe(null, state.sessionName, stages)
     }
 
-    fun pauseResume() {
+    fun pauseBaking() {
         val state = _uiState.value
-        val current = state.stages.getOrNull(state.currentIndex) ?: return
-        if (current.isRunning) {
-            tickJob?.cancel()
-            _uiState.update { it.copy(stages = it.stages.mapIndexed { i, s ->
-                if (i == state.currentIndex) s.copy(isRunning = false) else s
-            }) }
-        } else {
+        if (!state.isBaking) return
+        tickJob?.cancel()
+        viewModelScope.launch {
+            sessionRepository.setStatus(BakeSessionModel.STATUS_PAUSED)
+        }
+        _uiState.update { it.copy(isBaking = false, isPaused = true) }
+    }
+
+    fun resumeBaking() {
+        val state = _uiState.value
+        if (!state.isPaused) return
+        viewModelScope.launch {
+            val session = sessionRepository.getActive() ?: return@launch
+            val now = SystemClock.elapsedRealtime()
+            // Geser jadwal: tahap aktif punya sisa waktu sesuai remainingSeconds
+            val remaining = state.stages.getOrNull(state.currentIndex)?.remainingSeconds ?: 0L
+            val newEnds = BakeTimerEngine.resumeWithRemaining(
+                stageEnds = session.stageEnds,
+                currentIndex = state.currentIndex,
+                remainingSeconds = remaining,
+                nowElapsedRealtime = now
+            )
+            sessionRepository.advanceStage(newEnds, state.currentIndex)
+            sessionRepository.setStatus(BakeSessionModel.STATUS_ACTIVE)
+            // Re-jadwal alarm
+            timerScheduler.cancelAll(session.stages.size)
+            scheduleAlarms(session.stages, newEnds)
+            _uiState.update { it.copy(isBaking = true, isPaused = false) }
             startTicking()
-            _uiState.update { it.copy(stages = it.stages.mapIndexed { i, s ->
-                if (i == state.currentIndex) s.copy(isRunning = true) else s
-            }) }
         }
     }
 
     fun skipStage() {
         val state = _uiState.value
+        if (!state.isBaking) return
         timerScheduler.cancelStage(state.currentIndex)
-        advanceStage()
+        viewModelScope.launch {
+            val session = sessionRepository.getActive() ?: return@launch
+            val now = SystemClock.elapsedRealtime()
+            val newIndex = (state.currentIndex + 1).coerceAtMost(session.stageEnds.size - 1)
+            val newEnds = session.stageEnds.toMutableList()
+            newEnds[state.currentIndex] = now
+            sessionRepository.advanceStage(newEnds, newIndex)
+            if (BakeTimerEngine.isFinished(newEnds, now)) {
+                sessionRepository.markDone()
+                _uiState.update {
+                    it.copy(isBaking = false, currentIndex = 0, finishedMessage = "Baking selesai. Bagus!")
+                }
+            } else {
+                timerScheduler.scheduleStage(
+                    newIndex,
+                    session.stages.getOrNull(newIndex)?.name ?: "Tahap",
+                    session.stages.getOrNull(newIndex)?.totalSeconds?.times(1000L) ?: 0L,
+                    newEnds[newIndex]
+                )
+                startTicking()
+            }
+        }
     }
 
     fun stopBaking() {
         tickJob?.cancel()
         timerScheduler.cancelAll(_uiState.value.stages.size)
+        viewModelScope.launch {
+            sessionRepository.markDone()
+            _uiState.update {
+                it.copy(
+                    isBaking = false,
+                    isPaused = false,
+                    currentIndex = 0,
+                    finishedMessage = "Baking selesai. Bagus!"
+                )
+            }
+        }
+    }
+
+    fun dismissFinished() = _uiState.update { it.copy(finishedMessage = null) }
+
+    fun refreshPermissions() {
         _uiState.update {
             it.copy(
-                isBaking = false,
-                currentIndex = 0,
-                stages = it.stages.map { s -> s.copy(isRunning = false, isDone = false) }
+                needNotificationPermission = !PermissionHelper.hasNotificationPermission(context),
+                needExactAlarmPermission = !PermissionHelper.hasExactAlarmPermission(context)
             )
         }
     }
 
-    fun toggleBakeMode() {
-        _uiState.update { it.copy(bakeMode = !it.bakeMode) }
+    // ===== Internal =====
+    private fun scheduleAlarms(stages: List<StageSnapshot>, ends: List<Long>) {
+        stages.forEachIndexed { index, stage ->
+            timerScheduler.scheduleStage(index, stage.name, stage.totalSeconds * 1000L, ends[index])
+        }
     }
 
     private fun startTicking() {
@@ -132,53 +270,34 @@ class TimerViewModel @Inject constructor(
         tickJob = viewModelScope.launch {
             while (true) {
                 delay(1000)
-                val state = _uiState.value
-                if (!state.isBaking) break
-                val index = state.currentIndex
-                val current = state.stages.getOrNull(index) ?: break
-                val newRemaining = (current.remainingSeconds - 1).coerceAtLeast(0)
-                val newStages = state.stages.toMutableList()
-
-                if (newRemaining == 0L) {
-                    newStages[index] = current.copy(
-                        remainingSeconds = 0L,
-                        isDone = true,
-                        isRunning = false
-                    )
-                    _uiState.update { it.copy(stages = newStages) }
-                    advanceStage()
-                } else {
-                    newStages[index] = current.copy(
-                        remainingSeconds = newRemaining,
-                        isRunning = true
-                    )
-                    _uiState.update { it.copy(stages = newStages) }
-                }
-            }
-        }
-    }
-
-    private fun advanceStage() {
-        val state = _uiState.value
-        val next = state.currentIndex + 1
-        if (next >= state.stages.size) {
-            tickJob?.cancel()
-            timerScheduler.cancelAll(state.stages.size)
-            _uiState.update {
-                it.copy(
-                    isBaking = false,
-                    currentIndex = 0,
-                    stages = it.stages.map { s -> s.copy(isRunning = false) }
-                )
-            }
-        } else {
-            _uiState.update {
-                it.copy(
-                    currentIndex = next,
-                    stages = it.stages.mapIndexed { i, s ->
-                        if (i == next) s.copy(isRunning = true) else s
+                val now = SystemClock.elapsedRealtime()
+                val session = sessionRepository.getActive() ?: break
+                if (BakeTimerEngine.isFinished(session.stageEnds, now)) {
+                    sessionRepository.markDone()
+                    _uiState.update {
+                        it.copy(
+                            isBaking = false,
+                            isPaused = false,
+                            currentIndex = 0,
+                            finishedMessage = "Baking selesai. Bagus!"
+                        )
                     }
-                )
+                    break
+                }
+                val index = BakeTimerEngine.currentStageIndex(session.stageEnds, now)
+                _uiState.update { ui ->
+                    ui.copy(
+                        currentIndex = index,
+                        stages = session.stages.mapIndexed { i, s ->
+                            TimerStageUi(
+                                name = s.name,
+                                totalSeconds = s.totalSeconds,
+                                remainingSeconds = BakeTimerEngine.remainingMs(session.stageEnds, i, now) / 1000L,
+                                isDone = i < index
+                            )
+                        }
+                    )
+                }
             }
         }
     }

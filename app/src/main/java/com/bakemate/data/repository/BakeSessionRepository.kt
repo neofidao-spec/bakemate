@@ -65,6 +65,23 @@ class BakeSessionRepository @Inject constructor(
         dao.getActive()?.let { dao.setStatus(it.id, BakeSession.STATUS_DONE) }
     }
 
+    /** Advance ke tahap berikutnya / geser jadwal (skip, pause-freeze). */
+    suspend fun advanceStage(stageEnds: List<Long>, currentIndex: Int) {
+        dao.getActive()?.let { existing ->
+            dao.update(
+                existing.copy(
+                    stageEndsJson = encodeEnds(stageEnds),
+                    currentStageIndex = currentIndex
+                )
+            )
+        }
+    }
+
+    /** Set status sesi aktif (PAUSED / ACTIVE). */
+    suspend fun setStatus(status: String) {
+        dao.getActive()?.let { dao.setStatus(it.id, status) }
+    }
+
     suspend fun clearCompleted() = dao.clearCompleted()
 
     // ===== JSON helpers =====
