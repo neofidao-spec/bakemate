@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Monochrome: roti sourdough (satu path, solid) -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M30,44 L78,44 C80,40 78,34 72,30 C64,24 44,24 36,30 C30,34 28,40 30,44 Z" />
+    <path
+        android:fillColor="#000000"
+        android:pathData="M28,50 L80,50 C82,56 80,64 72,68 L36,68 C28,64 26,56 28,50 Z" />
+    <!-- Skor di permukaan -->
+    <path
+        android:fillColor="#000000"
+        android:pathData="M42,58 L52,50 L62,58 L68,52" />
+</vector>
