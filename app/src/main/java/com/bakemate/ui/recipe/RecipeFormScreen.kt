@@ -214,7 +214,7 @@ private fun IngredientRow(
                     value = if (ingredient.grams % 1.0 == 0.0) ingredient.grams.toInt().toString()
                     else ingredient.grams.toString(),
                     onValueChange = { input ->
-                        input.toDoubleOrNull()?.let(onGramsChange)
+                        input.replace(',', '.').toDoubleOrNull()?.let(onGramsChange)
                     },
                     label = "Gram",
                     suffix = "g",

@@ -21,9 +21,15 @@ fun NumberField(
     OutlinedTextField(
         value = value,
         onValueChange = { input ->
-            // hanya angka + titik desimal
-            val filtered = input.filter { it.isDigit() || it == '.' }
-            onValueChange(filtered)
+            // hanya angka, titik, dan koma desimal
+            val filtered = input.filter { it.isDigit() || it == '.' || it == ',' }
+            // hanya satu separator desimal
+            val normalized = if (filtered.count { it == '.' || it == ',' } > 1) {
+                filtered.dropLast(1)
+            } else {
+                filtered
+            }
+            onValueChange(normalized)
         },
         label = { Text(label) },
         modifier = modifier,

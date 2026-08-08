@@ -44,6 +44,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bakemate.domain.model.RecipeFormula
 import com.bakemate.ui.components.LoadingState
 import com.bakemate.ui.components.SectionHeader
+import com.bakemate.ui.components.StatCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,8 +57,45 @@ fun RecipeDetailScreen(
 ) {
     val state by viewModel.detailState.collectAsStateWithLifecycle()
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showStartDialog by remember { mutableStateOf(false) }
 
     val recipe = state.recipe
+
+    // Dialog konfirmasi mulai baking (preview tahap & durasi)
+    if (showStartDialog && recipe != null) {
+        val bakeSteps = recipe.steps.filter { it.minutes > 0 }
+        val totalMinutes = bakeSteps.sumOf { it.minutes.toLong() }
+        AlertDialog(
+            onDismissRequest = { showStartDialog = false },
+            title = { Text("Mulai Baking?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "${bakeSteps.size} tahap, total ±${formatMinutes(totalMinutes)}.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Text(
+                        text = "Timer akan berjalan walau aplikasi ditutup, dan memberi notifikasi di tiap tahap.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStartDialog = false
+                    onStartBaking(recipe)
+                }) {
+                    Text("Mulai")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStartDialog = false }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -115,19 +153,22 @@ fun RecipeDetailScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            StatBox(
-                                label = "Hydration",
+                            StatCard(
+                                title = "Hydration",
                                 value = "${recipe.hydrationPercent}%",
+                                horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.weight(1f)
                             )
-                            StatBox(
-                                label = "Total",
+                            StatCard(
+                                title = "Total",
                                 value = "${recipe.totalWeight.toInt()} g",
+                                horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.weight(1f)
                             )
-                            StatBox(
-                                label = "Langkah",
+                            StatCard(
+                                title = "Langkah",
                                 value = "${recipe.stepCount}",
+                                horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -136,7 +177,7 @@ fun RecipeDetailScreen(
 
                 item {
                     Button(
-                        onClick = { onStartBaking(recipe) },
+                        onClick = { showStartDialog = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Mulai Baking")
@@ -263,39 +304,16 @@ fun RecipeDetailScreen(
     }
 }
 
-@Composable
-private fun StatBox(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
 private fun formatGrams(grams: Double): String {
     return if (grams % 1.0 == 0.0) "${grams.toInt()} g" else "$grams g"
+}
+
+private fun formatMinutes(totalMinutes: Long): String {
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return when {
+        hours > 0 && minutes > 0 -> "${hours} jam ${minutes} menit"
+        hours > 0 -> "${hours} jam"
+        else -> "$minutes menit"
+    }
 }
