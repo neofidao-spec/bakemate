@@ -86,6 +86,9 @@ com.bakemate/
 │       ├── BackupManager.kt       # Export/import JSON (FileProvider share)
 │       └── BackupFormatter.kt     # Serialisasi/deserialisasi JSON
 │
+├── permission/                    # Izin runtime (notifikasi, alarm presisi)
+│   └── PermissionHelper.kt
+│
 └── timer/                         # ANDROID PLUMBING (AlarmManager, notif)
     ├── TimerScheduler.kt          # Jadwalkan/batalkan alarm per tahap
     ├── TimerAlarmReceiver.kt      # Terima alarm → notif + update DB
@@ -120,9 +123,9 @@ recipe_steps(id PK, recipeId FK→recipes, text, minutes, sortOrder)
 starter_logs(id PK, starterName, feedingTime, ratio, note, activityLevel,
              photoPath, createdAt)
 
-bake_sessions(id PK, recipeId FK?, stagesJson, currentStageIndex,
-              stageEndTimesJson, startedAt, status[ACTIVE|PAUSED|DONE],
-              bakeMode)                -- persist sesion aktif
+bake_sessions(id PK, recipeId FK?, stagesJson, stageEndsJson,
+              currentStageIndex, startedAt, status[ACTIVE|PAUSED|DONE],
+              bakeMode)                -- persist sesion aktif (elapsedRealtime)
 ```
 
 Migration v1→v2: buat `recipe_ingredients` + `recipe_steps` + `bake_sessions` dari data existing (ingredient 4-tetap → baris dinamis).
