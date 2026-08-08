@@ -3,6 +3,8 @@ package com.bakemate.di
 import android.content.Context
 import androidx.room.Room
 import com.bakemate.data.local.BakeMateDatabase
+import com.bakemate.data.local.BakeMateDatabase.Companion.MIGRATION_1_2
+import com.bakemate.data.local.dao.BakeSessionDao
 import com.bakemate.data.local.dao.RecipeDao
 import com.bakemate.data.local.dao.StarterLogDao
 import dagger.Module
@@ -23,7 +25,9 @@ object DatabaseModule {
             context.applicationContext,
             BakeMateDatabase::class.java,
             "bakemate_db"
-        ).build()
+        )
+            .addMigrations(MIGRATION_1_2)
+            .build()
     }
 
     @Provides
@@ -31,4 +35,7 @@ object DatabaseModule {
 
     @Provides
     fun provideStarterLogDao(db: BakeMateDatabase): StarterLogDao = db.starterLogDao()
+
+    @Provides
+    fun provideBakeSessionDao(db: BakeMateDatabase): BakeSessionDao = db.bakeSessionDao()
 }

@@ -15,5 +15,6 @@ data class Recipe(
     val hydrationPercent: Double = 0.0,
     val steps: String = "",
     val isFavorite: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
