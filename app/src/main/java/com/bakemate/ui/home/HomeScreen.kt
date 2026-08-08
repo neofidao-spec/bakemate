@@ -46,12 +46,23 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-    // Tick untuk progress kartu baking aktif
+    // Tick hanya saat ada sesi baking aktif — hindari recompose terus-menerus
     var tick by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0L) }
+    val activeSession = state.activeSession
+    val hasActiveSession = activeSession != null &&
+        activeSession.status != "PAUSED" &&
+        !BakeTimerEngine.isFinished(
+            activeSession.stageEnds,
+            SystemClock.elapsedRealtime()
+        )
     LaunchedEffect(state.activeSession?.id) {
-        while (true) {
+        if (hasActiveSession) {
+            while (true) {
+                tick = SystemClock.elapsedRealtime()
+                delay(1000)
+            }
+        } else {
             tick = SystemClock.elapsedRealtime()
-            delay(1000)
         }
     }
 

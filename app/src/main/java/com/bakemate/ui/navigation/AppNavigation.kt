@@ -61,6 +61,9 @@ object Routes {
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
+    // TimerViewModel dibagikan (activity-scoped) agar detail resep & layar Timer
+    // memakai instance yang sama — state baking tetap sinkron antar layar.
+    val timerViewModel: TimerViewModel = hiltViewModel()
 
     Scaffold(
         bottomBar = {
@@ -76,15 +79,7 @@ fun AppNavigation() {
                         val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
                         NavigationBarItem(
                             selected = selected,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
+                            onClick = { navigateToTab(navController, screen.route) },
                             icon = {
                                 Icon(
                                     painter = painterResource(screen.iconRes),
@@ -105,20 +100,23 @@ fun AppNavigation() {
         ) {
             composable(Screen.Home.route) {
                 HomeScreen(
-                    onOpenRecipes = { navController.navigate(Screen.Recipes.route) },
-                    onOpenTimer = { navController.navigate(Screen.Timer.route) },
-                    onOpenActiveBaking = { navController.navigate(Screen.Timer.route) },
-                    onOpenCalculator = { navController.navigate(Routes.CALCULATOR) }
+                    onOpenRecipes = { navigateToTab(navController, Screen.Recipes.route) },
+                    onOpenTimer = { navigateToTab(navController, Screen.Timer.route) },
+                    onOpenActiveBaking = { navigateToTab(navController, Screen.Timer.route) },
+                    onOpenCalculator = {
+                        navController.navigate(Routes.CALCULATOR) { launchSingleTop = true }
+                    }
                 )
             }
             composable(Screen.Recipes.route) {
                 RecipeListScreen(
-                    onRecipeClick = { id -> navController.navigate("recipes/$id") },
-                    onAddClick = { navController.navigate(Routes.RECIPE_FORM) }
+                    onRecipeClick = { id -> navController.navigate("recipes/$id") { launchSingleTop = true } },
+                    onAddClick = {
+                        navController.navigate(Routes.RECIPE_FORM) { launchSingleTop = true }
+                    }
                 )
             }
             composable(Screen.Timer.route) {
-                val timerViewModel: TimerViewModel = hiltViewModel()
                 TimerScreen(viewModel = timerViewModel)
             }
             composable(Screen.Starter.route) { StarterScreen() }
@@ -131,12 +129,13 @@ fun AppNavigation() {
             // ===== Non-tab routes =====
             composable(Routes.RECIPE_DETAIL) { backStackEntry ->
                 val recipeId = backStackEntry.arguments?.getString("recipeId")?.toLongOrNull() ?: 0L
-                val timerViewModel: TimerViewModel = hiltViewModel()
                 RecipeDetailScreen(
                     recipeId = recipeId,
                     onBack = { navController.popBackStack() },
                     onEdit = { recipe: RecipeFormula ->
-                        navController.navigate("recipes/form?recipeId=${recipe.id}")
+                        navController.navigate("recipes/form?recipeId=${recipe.id}") {
+                            launchSingleTop = true
+                        }
                     },
                     onStartBaking = { recipe: RecipeFormula ->
                         val stages = recipe.steps
@@ -148,12 +147,9 @@ fun AppNavigation() {
                                 )
                             }
                         if (stages.isEmpty()) return@RecipeDetailScreen
-                        // Mulai baking langsung dari detail resep
+                        // Mulai baking langsung dari detail resep (VM dibagikan)
                         timerViewModel.startBakingFromRecipe(recipe.id, recipe.name, stages)
-                        navController.navigate(Screen.Timer.route) {
-                            launchSingleTop = true
-                            popUpTo(Screen.Recipes.route) { saveState = true }
-                        }
+                        navigateToTab(navController, Screen.Timer.route)
                     }
                 )
             }
@@ -180,6 +176,15 @@ fun AppNavigation() {
                 )
             }
         }
+    }
+}
+
+/** Navigasi antar tab tanpa menumpuk back stack (pola bottom-nav resmi). */
+private fun navigateToTab(navController: NavHostController, route: String) {
+    navController.navigate(route) {
+        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
     }
 }
 
