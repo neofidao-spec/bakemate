@@ -53,6 +53,7 @@ fun TimerScreen(
     val context = LocalContext.current
     var showNotifPermissionDialog by remember { mutableStateOf(false) }
     var showExactAlarmDialog by remember { mutableStateOf(false) }
+    var showStopConfirm by remember { mutableStateOf(false) }
 
     // Dialog permission
     if (showNotifPermissionDialog) {
@@ -110,6 +111,28 @@ fun TimerScreen(
         )
     }
 
+    // Konfirmasi selesaikan baking
+    if (showStopConfirm) {
+        AlertDialog(
+            onDismissRequest = { showStopConfirm = false },
+            title = { Text("Selesaikan baking?") },
+            text = { Text("Sesi baking akan ditandai selesai dan tidak dapat dilanjutkan.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showStopConfirm = false
+                    viewModel.stopBaking()
+                }) {
+                    Text("Selesai")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStopConfirm = false }) {
+                    Text("Batal")
+                }
+            }
+        )
+    }
+
     // Banner izin
     if (state.needNotificationPermission || state.needExactAlarmPermission) {
         PermissionBanner(
@@ -159,9 +182,9 @@ fun TimerScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        // Stage utama (aktif)
+        // Stage utama (aktif atau dijeda)
         val currentStage = state.stages.getOrNull(state.currentIndex)
-        if (currentStage != null && state.isBaking) {
+        if (currentStage != null && (state.isBaking || state.isPaused)) {
             ActiveStageCard(
                 stage = currentStage,
                 index = state.currentIndex,
@@ -182,6 +205,17 @@ fun TimerScreen(
                         Spacer(Modifier.width(4.dp))
                         Text("Lanjutkan")
                     }
+                    OutlinedButton(
+                        onClick = { showStopConfirm = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(com.bakemate.R.drawable.ic_stop),
+                            contentDescription = null
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Selesai")
+                    }
                 } else {
                     FilledTonalButton(
                         onClick = viewModel::pauseBaking,
@@ -194,23 +228,23 @@ fun TimerScreen(
                         Spacer(Modifier.width(4.dp))
                         Text("Jeda")
                     }
-                }
-                OutlinedButton(
-                    onClick = viewModel::skipStage,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Lewati")
-                }
-                OutlinedButton(
-                    onClick = viewModel::stopBaking,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        painter = androidx.compose.ui.res.painterResource(com.bakemate.R.drawable.ic_stop),
-                        contentDescription = null
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text("Selesai")
+                    OutlinedButton(
+                        onClick = viewModel::skipStage,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Lewati")
+                    }
+                    OutlinedButton(
+                        onClick = { showStopConfirm = true },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(com.bakemate.R.drawable.ic_stop),
+                            contentDescription = null
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text("Selesai")
+                    }
                 }
             }
         } else if (!state.isBaking && !state.isPaused) {

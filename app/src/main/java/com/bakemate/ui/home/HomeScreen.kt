@@ -167,6 +167,18 @@ fun HomeScreen(
                     onClick = onOpenTimer,
                     modifier = Modifier.weight(1f)
                 )
+                QuickActionCard(
+                    title = "Kalkulator",
+                    subtitle = "Hydration & scaling",
+                    icon = {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(com.bakemate.R.drawable.ic_calculator),
+                            contentDescription = null
+                        )
+                    },
+                    onClick = onOpenCalculator,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 

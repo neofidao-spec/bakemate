@@ -129,6 +129,18 @@ class RecipeViewModel @Inject constructor(
         _formState.update { it.copy(isVisible = false, editingId = null, errorMessage = null) }
     }
 
+    /** Muat resep untuk diedit (dipanggil dari navigasi form dengan recipeId). */
+    fun loadRecipeForEdit(recipeId: Long) {
+        viewModelScope.launch {
+            val formula = repository.getById(recipeId)
+            if (formula != null) {
+                showEditForm(formula)
+            } else {
+                showAddForm()
+            }
+        }
+    }
+
     fun updateFormName(value: String) = _formState.update { it.copy(name = value) }
     fun updateFormDescription(value: String) = _formState.update { it.copy(description = value) }
 

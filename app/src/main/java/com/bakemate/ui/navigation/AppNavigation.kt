@@ -14,10 +14,13 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import androidx.compose.runtime.LaunchedEffect
 import com.bakemate.R
 import com.bakemate.domain.model.RecipeFormula
 import com.bakemate.domain.timer.StageSnapshot
@@ -26,6 +29,7 @@ import com.bakemate.ui.home.HomeScreen
 import com.bakemate.ui.recipe.RecipeDetailScreen
 import com.bakemate.ui.recipe.RecipeFormScreen
 import com.bakemate.ui.recipe.RecipeListScreen
+import com.bakemate.ui.recipe.RecipeViewModel
 import com.bakemate.ui.settings.SettingsScreen
 import com.bakemate.ui.starter.StarterScreen
 import com.bakemate.ui.timer.TimerScreen
@@ -50,7 +54,7 @@ private val bottomTabs = listOf(
 // Rute detail/form (bukan tab)
 object Routes {
     const val RECIPE_DETAIL = "recipes/{recipeId}"
-    const val RECIPE_FORM = "recipes/form"
+    const val RECIPE_FORM = "recipes/form?recipeId={recipeId}"
     const val CALCULATOR = "calculator"
 }
 
@@ -132,7 +136,7 @@ fun AppNavigation() {
                     recipeId = recipeId,
                     onBack = { navController.popBackStack() },
                     onEdit = { recipe: RecipeFormula ->
-                        navController.navigate(Routes.RECIPE_FORM)
+                        navController.navigate("recipes/form?recipeId=${recipe.id}")
                     },
                     onStartBaking = { recipe: RecipeFormula ->
                         val stages = recipe.steps
@@ -153,7 +157,19 @@ fun AppNavigation() {
                     }
                 )
             }
-            composable(Routes.RECIPE_FORM) {
+            composable(
+                route = Routes.RECIPE_FORM,
+                arguments = listOf(navArgument("recipeId") { type = NavType.LongType; defaultValue = -1L })
+            ) { backStackEntry ->
+                val recipeId = backStackEntry.arguments?.getLong("recipeId") ?: -1L
+                val formViewModel: RecipeViewModel = hiltViewModel()
+                LaunchedEffect(recipeId) {
+                    if (recipeId > 0) {
+                        formViewModel.loadRecipeForEdit(recipeId)
+                    } else {
+                        formViewModel.showAddForm()
+                    }
+                }
                 RecipeFormScreen(
                     onBack = { navController.popBackStack() }
                 )
