@@ -75,7 +75,9 @@ class RecipeRepository @Inject constructor(
         )
     }
 
-    fun search(query: String): Flow<List<RecipeFormula>> = dao.search(query)
+    fun search(query: String): Flow<List<RecipeFormula>> = dao.search(query).map { recipes ->
+        recipes.map { it.toFormulaShort() }
+    }
 
     /** Simpan formula lengkap. */
     suspend fun saveFormula(formula: RecipeFormula): Long {
