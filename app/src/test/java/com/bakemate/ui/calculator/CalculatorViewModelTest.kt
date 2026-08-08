@@ -31,7 +31,9 @@ class CalculatorViewModelTest {
     fun `initial state computes hydration and total`() {
         val vm = CalculatorViewModel()
         val state = vm.uiState.value
-        assertEquals(70.0, state.hydration, 0.1)
+        // default: 500 flour + 100 starter -> 550 total flour; 350 water + 50 starter water = 400
+        // 400/550 = 72.7%
+        assertEquals(72.7, state.hydration, 0.1)
         assertEquals(960.0, state.totalWeight, 0.1)
         assertEquals(null, state.errorMessage)
     }
