@@ -69,14 +69,12 @@ object BakeTimerEngine {
         var cursor = nowElapsedRealtime + remainingSeconds * 1000L
         for (i in currentIndex until result.size) {
             result[i] = cursor
-            val duration = if (i + 1 < result.size) {
-                result[i + 1] - result[i]
-            } else {
-                // durasi tahap terakhir tidak diketahui dari end diff — pakai
-                // selisih asli dari array lama
-                (stageEnds.getOrNull(i + 1) ?: stageEnds[i]) - (stageEnds.getOrNull(i) ?: 0L)
+            if (i + 1 < result.size) {
+                // Durasi asli tahap berikutnya diambil dari nilai ORIGINAL
+                // (stageEnds), bukan result yang sudah digeser.
+                val originalNextDuration = stageEnds[i + 1] - stageEnds[i]
+                cursor += originalNextDuration
             }
-            cursor += duration
         }
         return result
     }
