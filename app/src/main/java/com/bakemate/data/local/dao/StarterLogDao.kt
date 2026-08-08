@@ -28,4 +28,10 @@ interface StarterLogDao {
 
     @Query("SELECT COUNT(*) FROM starter_logs")
     suspend fun count(): Int
+
+    @Query("SELECT * FROM starter_logs ORDER BY feedingTime DESC")
+    suspend fun getAll(): List<StarterLog>
+
+    @Query("DELETE FROM starter_logs")
+    suspend fun deleteAll()
 }

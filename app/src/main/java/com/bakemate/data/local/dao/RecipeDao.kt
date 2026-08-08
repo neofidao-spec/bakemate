@@ -42,6 +42,21 @@ interface RecipeDao {
     @Query("SELECT COUNT(*) FROM recipes")
     suspend fun count(): Int
 
+    @Query("SELECT * FROM recipes ORDER BY updatedAt DESC")
+    suspend fun getAll(): List<Recipe>
+
+    @Query("DELETE FROM recipes")
+    suspend fun deleteAll()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertFull(recipe: Recipe): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertIngredient(ingredient: RecipeIngredient): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertStep(step: RecipeStep): Long
+
     // ===== Ingredients =====
     @Query("SELECT * FROM recipe_ingredients WHERE recipeId = :recipeId ORDER BY sortOrder")
     fun observeIngredients(recipeId: Long): Flow<List<RecipeIngredient>>

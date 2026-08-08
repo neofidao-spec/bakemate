@@ -118,7 +118,11 @@ fun AppNavigation() {
                 TimerScreen(viewModel = timerViewModel)
             }
             composable(Screen.Starter.route) { StarterScreen() }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Settings.route) {
+                SettingsScreen(
+                    onBack = { navController.popBackStack() }
+                )
+            }
 
             // ===== Non-tab routes =====
             composable(Routes.RECIPE_DETAIL) { backStackEntry ->
