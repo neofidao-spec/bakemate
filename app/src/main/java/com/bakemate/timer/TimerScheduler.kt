@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import com.bakemate.permission.PermissionHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -37,14 +38,15 @@ class TimerScheduler @Inject constructor(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
-            alarmManager.set(
+        if (PermissionHelper.hasExactAlarmPermission(context)) {
+            alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
                 triggerAtMillis,
                 pendingIntent
             )
         } else {
-            alarmManager.setExactAndAllowWhileIdle(
+            // Fallback: alarm inexact (tetap bekerja, mungkin telat beberapa menit)
+            alarmManager.set(
                 AlarmManager.RTC_WAKEUP,
                 triggerAtMillis,
                 pendingIntent
